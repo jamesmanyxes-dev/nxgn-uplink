@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>NXGN UPLINK — Pair your bot</title>
+<meta name="theme-color" content="#050608">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Rajdhani:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ember:#ff5a1f; --ember2:#ffb347; --cy:#57e8ff; --vio:#9d6bff;
+    --ink:#e9f4ff; --dim:#8aa3bd; --line:rgba(120,180,230,.16);
+    --glass:rgba(10,14,22,.42);
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%}
+  body{
+    background:#050608;color:var(--ink);overflow-x:hidden;
+    font-family:'Rajdhani',system-ui,sans-serif;
+  }
+  /* ============ SCENE ============ */
+  #scene{position:fixed;inset:0;z-index:0;overflow:hidden;background:#050608}
+  #bgv{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;
+    filter:brightness(.5) contrast(1.08) saturate(1.05);transform:scale(1.06)}
+  #fog{position:absolute;inset:-20%;pointer-events:none;opacity:.5;mix-blend-mode:screen;
+    background:
+      radial-gradient(38% 30% at 22% 78%, rgba(255,90,31,.16), transparent 70%),
+      radial-gradient(30% 26% at 78% 70%, rgba(255,140,40,.10), transparent 70%),
+      radial-gradient(50% 40% at 50% 100%, rgba(120,40,10,.14), transparent 75%);
+    animation:fogdrift 26s ease-in-out infinite alternate}
+  @keyframes fogdrift{from{transform:translate3d(-3%,1%,0) scale(1)}to{transform:translate3d(3%,-2%,0) scale(1.08)}}
+  #embers{position:absolute;inset:0;pointer-events:none}
+  #vign{position:absolute;inset:0;pointer-events:none;
+    background:radial-gradient(130% 95% at 50% 18%, transparent 42%, rgba(0,0,0,.62) 100%)}
+  #scan{position:absolute;inset:0;pointer-events:none;opacity:.05;
+    background:repeating-linear-gradient(0deg,transparent 0 3px,rgba(160,220,255,.6) 3px 4px)}
+  #sweep{position:absolute;left:0;right:0;height:22vh;pointer-events:none;opacity:.05;
+    background:linear-gradient(180deg,transparent,rgba(140,220,255,.55),transparent);
+    animation:sweep 7.5s linear infinite}
+  @keyframes sweep{from{top:-25%}to{top:110%}}
+  /* ============ HUD CHROME ============ */
+  .hud{position:fixed;z-index:5;pointer-events:none;opacity:.55}
+  .hud.tl{top:14px;left:14px}.hud.tr{top:14px;right:14px}
+  .hud.bl{bottom:14px;left:14px}.hud.br{bottom:14px;right:14px}
+  .hud svg{display:block}
+  .topline{position:fixed;top:0;left:0;right:0;height:2px;z-index:6;
+    background:linear-gradient(90deg,transparent,var(--cy) 30%,var(--vio) 70%,transparent);
+    opacity:.5;animation:topline 9s ease-in-out infinite}
+  @keyframes topline{0%,100%{opacity:.25}50%{opacity:.6}}
+  /* ============ BOOT ============ */
+  #boot{position:fixed;inset:0;z-index:60;background:#020305;display:flex;align-items:center;justify-content:center;
+    flex-direction:column;gap:18px;transition:opacity .9s ease,visibility .9s}
+  #boot.done{opacity:0;visibility:hidden}
+  .bootlogo{font-family:'Orbitron';font-weight:900;letter-spacing:.35em;font-size:clamp(20px,5vw,34px);
+    color:var(--ink);text-shadow:0 0 22px rgba(87,232,255,.45)}
+  .bootlogo b{color:var(--ember);text-shadow:0 0 26px rgba(255,90,31,.65)}
+  .bootbar{width:min(340px,70vw);height:3px;background:rgba(120,180,230,.12);border-radius:3px;overflow:hidden}
+  .bootbar i{display:block;height:100%;width:0%;border-radius:3px;
+    background:linear-gradient(90deg,var(--cy),var(--vio),var(--ember));animation:boot 2.2s ease forwards}
+  @keyframes boot{to{width:100%}}
+  #bootlog{font-size:12.5px;letter-spacing:.14em;color:var(--dim);min-height:18px;text-transform:uppercase}
+  /* ============ LAYOUT ============ */
+  .wrap{position:relative;z-index:10;min-height:100vh;display:flex;flex-direction:column;align-items:center;
+    padding:max(30px,env(safe-area-inset-top)) 18px 44px}
+  .brand{display:flex;flex-direction:column;align-items:center;gap:8px;margin-bottom:26px}
+  .sigil{width:64px;height:64px;filter:drop-shadow(0 0 14px rgba(255,90,31,.5))}
+  .brand h1{font-family:'Orbitron';font-weight:900;font-size:clamp(26px,7.4vw,44px);letter-spacing:.14em;
+    background:linear-gradient(180deg,#fff, #ffd9c2 45%, var(--ember));
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+    filter:drop-shadow(0 0 18px rgba(255,110,40,.35))}
+  .brand .sub{font-size:12px;letter-spacing:.42em;color:var(--dim);text-transform:uppercase;display:flex;gap:10px;align-items:center}
+  .brand .sub::before,.brand .sub::after{content:"";width:34px;height:1px;background:linear-gradient(90deg,transparent,var(--cy));opacity:.6}
+  .brand .sub::after{background:linear-gradient(90deg,var(--cy),transparent)}
+  /* ============ CARD ============ */
+  .stage{perspective:1200px;width:100%;max-width:520px}
+  .card{position:relative;border-radius:22px;padding:26px 22px 24px;
+    background:linear-gradient(165deg,rgba(14,19,30,.52),rgba(6,9,15,.38));
+    border:1px solid var(--line);backdrop-filter:blur(14px) saturate(1.2);
+    box-shadow:0 30px 80px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.06);
+    transform-style:preserve-3d;transition:transform .18s ease-out;will-change:transform}
+  .card::before{content:"";position:absolute;inset:-1px;border-radius:23px;padding:1px;pointer-events:none;
+    background:conic-gradient(from var(--a,0deg), transparent 0 82%, rgba(87,232,255,.8) 88%, rgba(157,107,255,.8) 93%, transparent 100%);
+    -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);
+    -webkit-mask-composite:xor;mask-composite:exclude;
+    animation:orbit 6s linear infinite;opacity:.85}
+  @keyframes orbit{to{--a:360deg}}
+  @property --a{syntax:'<angle>';initial-value:0deg;inherits:false}
+  .corner{position:absolute;width:16px;height:16px;border:2px solid rgba(87,232,255,.7);pointer-events:none}
+  .corner.c1{top:-2px;left:-2px;border-right:0;border-bottom:0;border-radius:6px 0 0 0}
+  .corner.c2{top:-2px;right:-2px;border-left:0;border-bottom:0;border-radius:0 6px 0 0}
+  .corner.c3{bottom:-2px;left:-2px;border-right:0;border-top:0;border-radius:0 0 0 6px}
+  .corner.c4{bottom:-2px;right:-2px;border-left:0;border-top:0;border-radius:0 0 6px 0}
+  .secl{display:flex;align-items:center;gap:10px;font-size:11px;letter-spacing:.34em;color:var(--dim);
+    text-transform:uppercase;margin:0 0 12px;font-weight:600}
+  .secl::after{content:"";flex:1;height:1px;background:linear-gradient(90deg,var(--line),transparent)}
+  .secl .n{color:var(--cy);font-family:'Orbitron';font-size:10px}
+  /* servers */
+  .servers{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:18px}
+  .srv{position:relative;display:flex;flex-direction:column;gap:8px;padding:12px 12px 11px;border-radius:14px;
+    background:rgba(9,13,21,.55);border:1px solid var(--line);cursor:pointer;overflow:hidden;
+    transition:transform .16s ease, border-color .2s, box-shadow .25s}
+  .srv:hover{transform:translateY(-1px)}
+  .srv.sel{border-color:rgba(87,232,255,.75);box-shadow:0 0 0 1px rgba(87,232,255,.35),0 8px 30px rgba(87,232,255,.12);
+    background:linear-gradient(160deg,rgba(87,232,255,.12),rgba(9,13,21,.55) 55%)}
+  .srv .row{display:flex;align-items:center;justify-content:space-between;gap:8px}
+  .srv .nm{font-family:'Orbitron';font-weight:700;font-size:12.5px;letter-spacing:.12em;color:#dceeff}
+  .srv .st{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--dim);letter-spacing:.08em}
+  .dot{width:7px;height:7px;border-radius:50%;background:#2bd57a;box-shadow:0 0 8px #2bd57a;animation:pulse 2.2s infinite}
+  .srv.off .dot{background:#ff4d5e;box-shadow:0 0 8px #ff4d5e;animation:none}
+  .srv.full .dot{background:#ffb020;box-shadow:0 0 8px #ffb020}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.45}}
+  .bar{height:5px;border-radius:4px;background:rgba(120,180,230,.12);overflow:hidden}
+  .bar i{display:block;height:100%;width:0;border-radius:4px;background:linear-gradient(90deg,var(--cy),var(--vio));
+    transition:width .8s cubic-bezier(.2,.8,.2,1)}
+  .srv.full .bar i{background:linear-gradient(90deg,#ffb020,#ff4d5e)}
+  .srv .meta{display:flex;justify-content:space-between;font-size:11px;color:var(--dim);letter-spacing:.06em}
+  .srv .pick{font-size:10px;letter-spacing:.3em;color:var(--cy);text-transform:uppercase;opacity:0;transition:opacity .2s}
+  .srv.sel .pick{opacity:1}
+  .auto{grid-column:1/-1;display:flex;align-items:center;justify-content:center;gap:10px;padding:11px;border-radius:14px;
+    border:1px dashed rgba(157,107,255,.4);background:rgba(157,107,255,.05);cursor:pointer;transition:all .2s}
+  .auto.sel{border-color:rgba(157,107,255,.9);background:rgba(157,107,255,.13);box-shadow:0 0 24px rgba(157,107,255,.15)}
+  .auto .tx{font-size:12px;letter-spacing:.3em;text-transform:uppercase;color:#cbb4ff;font-weight:700}
+  /* number input */
+  .field{position:relative;border-radius:14px;background:rgba(6,10,17,.6);border:1px solid var(--line);
+    transition:border-color .2s, box-shadow .25s}
+  .field:focus-within{border-color:rgba(87,232,255,.65);box-shadow:0 0 0 1px rgba(87,232,255,.3),0 0 30px rgba(87,232,255,.12)}
+  .field input{width:100%;background:transparent;border:0;outline:0;color:#eef7ff;
+    font-size:19px;font-weight:600;letter-spacing:.06em;padding:15px 16px 6px;font-family:'Rajdhani'}
+  .field label{position:absolute;left:16px;top:9px;font-size:10.5px;letter-spacing:.28em;color:var(--dim);
+    text-transform:uppercase;pointer-events:none;transition:all .18s}
+  .field .pre{position:absolute;right:14px;bottom:10px;font-size:12px;color:var(--dim);letter-spacing:.1em}
+  /* button */
+  .go{position:relative;width:100%;margin-top:18px;padding:16px;border:0;border-radius:14px;cursor:pointer;
+    font-family:'Orbitron';font-weight:800;font-size:14px;letter-spacing:.32em;color:#fff;overflow:hidden;
+    background:linear-gradient(135deg,#ff7a2f 0%,#ff4d2e 48%,#a34dff 100%);
+    box-shadow:0 10px 34px rgba(255,90,40,.35), inset 0 1px 0 rgba(255,255,255,.25);
+    transition:transform .16s, box-shadow .25s, filter .2s}
+  .go:hover{transform:translateY(-2px);box-shadow:0 16px 44px rgba(255,90,40,.45)}
+  .go:active{transform:translateY(0) scale(.99)}
+  .go:disabled{filter:grayscale(.5) brightness(.7);cursor:wait}
+  .go .shine{position:absolute;top:0;bottom:0;width:40%;left:-60%;
+    background:linear-gradient(100deg,transparent,rgba(255,255,255,.5),transparent);
+    transform:skewX(-18deg);animation:shine 3.4s ease infinite}
+  @keyframes shine{0%,55%{left:-60%}100%{left:130%}}
+  /* status + code */
+  .status{margin-top:16px;text-align:center;min-height:22px;font-size:14px;color:#a9c4dd;letter-spacing:.04em}
+  .status .err{color:#ff9aa8}
+  .spin{display:inline-block;width:14px;height:14px;border:2px solid rgba(87,232,255,.25);border-top-color:var(--cy);
+    border-radius:50%;animation:sp 1s linear infinite;vertical-align:-2px;margin-right:8px}
+  @keyframes sp{to{transform:rotate(360deg)}}
+  .codebox{display:none;margin-top:18px;border-radius:16px;border:1px solid rgba(87,232,255,.4);
+    background:linear-gradient(165deg,rgba(87,232,255,.08),rgba(6,10,17,.5));padding:18px 16px;text-align:center;
+    animation:rise .6s cubic-bezier(.2,.9,.25,1)}
+  @keyframes rise{from{opacity:0;transform:translateY(14px) scale(.97)}to{opacity:1;transform:none}}
+  .codebox .lb{font-size:10.5px;letter-spacing:.4em;color:var(--cy);text-transform:uppercase}
+  .digits{font-family:'Orbitron';font-weight:700;font-size:clamp(26px,7vw,36px);letter-spacing:.32em;
+    color:#eafcff;text-shadow:0 0 24px rgba(87,232,255,.6);margin:12px 0 4px;word-break:break-all}
+  .copy{margin:8px auto 14px;display:inline-flex;align-items:center;gap:7px;padding:7px 14px;border-radius:9px;
+    border:1px solid rgba(87,232,255,.35);background:rgba(87,232,255,.08);color:#bfeeff;
+    font-size:11px;letter-spacing:.22em;cursor:pointer;text-transform:uppercase}
+  .copy:active{transform:scale(.97)}
+  .steps{text-align:left;font-size:13px;color:#b9cfdf;line-height:1.9;border-top:1px solid var(--line);padding-top:12px}
+  .steps b{color:#fff}
+  .steps .k{color:var(--ember2)}
+  .alert{display:none;margin:0 0 14px;padding:10px 14px;border-radius:12px;font-size:12.5px;letter-spacing:.06em;
+    background:rgba(140,60,10,.28);border:1px solid rgba(255,140,60,.4);color:#ffc9a8;text-align:center}
+  /* sound + footer */
+  .sound{position:fixed;top:16px;right:16px;z-index:30;display:flex;align-items:center;gap:8px;
+    background:rgba(6,10,18,.55);border:1px solid var(--line);backdrop-filter:blur(8px);
+    border-radius:999px;padding:9px 15px;color:#9fd8ff;font-size:10.5px;letter-spacing:.26em;cursor:pointer}
+  .sound:hover{border-color:rgba(87,232,255,.5)}
+  .foot{margin-top:26px;font-size:10px;letter-spacing:.4em;color:#44586e;text-transform:uppercase;text-align:center}
+  .foot b{color:#7d94a8}
+  @media (max-width:420px){
+    .servers{grid-template-columns:1fr 1fr;gap:8px}
+    .card{padding:22px 16px 20px}
+  }
+  @media (prefers-reduced-motion:reduce){
+    *{animation-duration:.01ms !important;animation-iteration-count:1 !important}
+  }
+</style>
+</head>
+<body>
+
+<!-- SCENE -->
+<div id="scene">
+  <video id="bgv" autoplay muted loop playsinline preload="auto" src="/bg"></video>
+  <div id="fog"></div>
+  <canvas id="embers"></canvas>
+  <div id="vign"></div>
+  <div id="scan"></div>
+  <div id="sweep"></div>
+</div>
+
+<!-- HUD corners -->
+<div class="hud tl"><svg width="46" height="46" viewBox="0 0 46 46" fill="none"><path d="M2 14V2h12" stroke="#57e8ff" stroke-width="2"/><path d="M2 8V2h6" stroke="#ff5a1f" stroke-width="2"/></svg></div>
+<div class="hud tr"><svg width="46" height="46" viewBox="0 0 46 46" fill="none"><path d="M44 14V2H32" stroke="#57e8ff" stroke-width="2"/><path d="M44 8V2h-6" stroke="#ff5a1f" stroke-width="2"/></svg></div>
+<div class="hud bl"><svg width="46" height="46" viewBox="0 0 46 46" fill="none"><path d="M2 32v12h12" stroke="#57e8ff" stroke-width="2"/></svg></div>
+<div class="hud br"><svg width="46" height="46" viewBox="0 0 46 46" fill="none"><path d="M44 32v12H32" stroke="#57e8ff" stroke-width="2"/></svg></div>
+<div class="topline"></div>
+
+<!-- SOUND -->
+<button class="sound" id="soundBtn"><span id="sIco">🔇</span><span id="sTxt">SOUND</span></button>
+
+<!-- BOOT -->
+<div id="boot">
+  <div class="bootlogo">NXGN<b>·</b>UPLINK</div>
+  <div class="bootbar"><i></i></div>
+  <div id="bootlog">initializing…</div>
+</div>
+
+<!-- MAIN -->
+<div class="wrap">
+  <div class="brand">
+    <svg class="sigil" viewBox="0 0 64 64" fill="none">
+      <circle cx="32" cy="32" r="28" stroke="rgba(87,232,255,.5)" stroke-width="1.5" stroke-dasharray="4 6"/>
+      <circle cx="32" cy="32" r="20" stroke="rgba(255,90,31,.75)" stroke-width="2"/>
+      <path d="M32 12l4.5 14H51l-11.8 8.6L43.7 49 32 40.4 20.3 49l4.5-14.4L13 26h14.5z" fill="rgba(255,120,50,.9)"/>
+    </svg>
+    <h1>EVIL⁶⁶⁶ MD</h1>
+    <div class="sub">pairing uplink</div>
+  </div>
+
+  <div class="stage"><div class="card" id="card">
+    <i class="corner c1"></i><i class="corner c2"></i><i class="corner c3"></i><i class="corner c4"></i>
+
+    <p class="secl"><span class="n">01</span> Select Node</p>
+    <div class="servers" id="servers"></div>
+
+    <div class="alert" id="alert"></div>
+
+    <p class="secl"><span class="n">02</span> Identity</p>
+    <div class="field">
+      <label for="num">WhatsApp Number</label>
+      <input id="num" type="tel" inputmode="numeric" autocomplete="tel" placeholder=" ">
+      <span class="pre">+ country code</span>
+    </div>
+
+    <button class="go" id="go"><span class="shine"></span><span id="goTx">INITIATE PAIRING</span></button>
+
+    <div class="status" id="st"></div>
+
+    <div class="codebox" id="codeBox">
+      <div class="lb">pairing code</div>
+      <div class="digits" id="digits">···· ····</div>
+      <button class="copy" id="copyBtn">⧉ Copy code</button>
+      <div class="steps">
+        1. Open <b>WhatsApp</b> → <span class="k">Settings</span><br>
+        2. <span class="k">Linked devices</span> → <span class="k">Link a device</span><br>
+        3. Tap <span class="k">Link with phone number instead</span><br>
+        4. Enter the code above — your bot deploys ⚡
+      </div>
+    </div>
+  </div></div>
+
+  <div class="foot">NXGN SYSTEMS · <b>THE NETWORK ENDURES</b> · EST. 2076</div>
+</div>
+
+<script>
+/* ================= EMBERS ================= */
+const cv = document.getElementById('embers'), cx = cv.getContext('2d');
+let W, H, parts = [];
+function sizeCanvas(){ W = cv.width = innerWidth * devicePixelRatio; H = cv.height = innerHeight * devicePixelRatio; cv.style.width = innerWidth+'px'; cv.style.height = innerHeight+'px'; }
+sizeCanvas(); addEventListener('resize', sizeCanvas);
+function mk(p){
+  return { x: Math.random()*W, y: H + Math.random()*H*.3, r: (Math.random()*2.2+.6)*(devicePixelRatio),
+    vy: (Math.random()*.7+.35)*(devicePixelRatio), vx: (Math.random()-.5)*.4*(devicePixelRatio),
+    a: Math.random()*.7+.25, hue: Math.random()<.82 ? 18+Math.random()*18 : 190, p };
+}
+for (let i=0;i<110;i++) parts.push(mk());
+let mx=.5,my=.5; addEventListener('pointermove',e=>{mx=e.clientX/innerWidth;my=e.clientY/innerHeight});
+function tick(){
+  cx.clearRect(0,0,W,H);
+  for (const p of parts){
+    p.y -= p.vy; p.x += p.vx + Math.sin((p.y+p.p)/90)*.35*devicePixelRatio + (mx-.5)*.3;
+    const life = p.y/H;
+    if (p.y < -20) Object.assign(p, mk());
+    const g = cx.createRadialGradient(p.x,p.y,0,p.x,p.y,p.r*4);
+    const col = p.hue<50 ? `255,${100+p.hue|0},30` : '90,220,255';
+    g.addColorStop(0,`rgba(${col},${p.a})`);
+    g.addColorStop(1,`rgba(${col},0)`);
+    cx.fillStyle=g; cx.beginPath(); cx.arc(p.x,p.y,p.r*4,0,7); cx.fill();
+  }
+  requestAnimationFrame(tick);
+}
+tick();
+
+/* ================= CARD TILT ================= */
+const card = document.getElementById('card'), stage = document.querySelector('.stage');
+stage.addEventListener('pointermove', e=>{
+  const r = card.getBoundingClientRect();
+  const x = (e.clientX-r.left)/r.width-.5, y=(e.clientY-r.top)/r.height-.5;
+  card.style.transform = `rotateY(${x*7}deg) rotateX(${-y*7}deg) translateZ(6px)`;
+});
+stage.addEventListener('pointerleave', ()=> card.style.transform='');
+
+/* ================= BOOT SEQ ================= */
+const bootMsgs = ['connecting to uplink…','authenticating node mesh…','syncing fleet telemetry…','uplink established'];
+let bi = 0; const bl = document.getElementById('bootlog');
+const bt = setInterval(()=>{ if (bi < bootMsgs.length) bl.textContent = bootMsgs[bi++]; else { clearInterval(bt); document.getElementById('boot').classList.add('done'); } }, 620);
+
+/* ================= SOUND ================= */
+const bgv = document.getElementById('bgv'), sBtn = document.getElementById('soundBtn'), sIco=document.getElementById('sIco'), sTxt=document.getElementById('sTxt');
+sBtn.addEventListener('click', ()=>{
+  if (bgv.muted){ bgv.muted=false; bgv.volume=.55; sIco.textContent='🔊'; sTxt.textContent='SOUND ON'; }
+  else { bgv.muted=true; sIco.textContent='🔇'; sTxt.textContent='SOUND'; }
+});
+
+/* ================= FLEET ================= */
+const serversEl=document.getElementById('servers'), st=document.getElementById('st');
+const btn=document.getElementById('go'), num=document.getElementById('num');
+const codeBox=document.getElementById('codeBox'), digits=document.getElementById('digits');
+const alertEl=document.getElementById('alert'), goTx=document.getElementById('goTx');
+let chosen='auto', S=[], timer=null;
+
+function renderServers(){
+  serversEl.innerHTML='';
+  for (const s of S){
+    const full = !s.online || s.free<=0;
+    const d=document.createElement('div');
+    d.className='srv'+(chosen===s.id?' sel':'')+(full?' full':'')+(!s.online?' off':'');
+    const pct = Math.min(100, Math.round(s.sessions/s.max*100));
+    d.innerHTML=`<div class="row"><span class="nm">${s.label}</span><span class="st"><span class="dot"></span>${s.online?'ONLINE':'OFFLINE'}</span></div>
+      <div class="bar"><i style="width:${pct}%"></i></div>
+      <div class="meta"><span>${s.sessions}/${s.max} linked</span><span class="pick">◆ selected</span></div>`;
+    d.onclick=()=>{ if(full){ showAlert(s.label+' is at capacity — choose another node or AUTO.'); return; } chosen=s.id; hideAlert(); renderServers(); blip(); };
+    serversEl.appendChild(d);
+  }
+  const a=document.createElement('div');
+  a.className='auto'+(chosen==='auto'?' sel':'');
+  a.innerHTML=`<span>⚡</span><span class="tx">Auto-route · fastest node</span>`;
+  a.onclick=()=>{ chosen='auto'; hideAlert(); renderServers(); blip(); };
+  serversEl.appendChild(a);
+}
+function showAlert(t){ alertEl.style.display='block'; alertEl.textContent='⚠ '+t; }
+function hideAlert(){ alertEl.style.display='none'; }
+async function loadServers(){ try{ const j=await (await fetch('/api/servers')).json(); S=j.servers||[]; renderServers(); }catch(e){} }
+loadServers(); setInterval(loadServers, 15000);
+
+/* ================= AUDIO BLIP ================= */
+let AC=null;
+function blip(f=880){
+  try{
+    AC = AC || new (window.AudioContext||window.webkitAudioContext)();
+    if (AC.state==='suspended') AC.resume();
+    const o=AC.createOscillator(), g=AC.createGain();
+    o.type='sine'; o.frequency.value=f;
+    g.gain.setValueAtTime(.06,AC.currentTime);
+    g.gain.exponentialRampToValueAtTime(.0001,AC.currentTime+.12);
+    o.connect(g).connect(AC.destination); o.start(); o.stop(AC.currentTime+.13);
+  }catch(e){}
+}
+
+/* ================= PAIR ================= */
+btn.addEventListener('click', async ()=>{
+  const n = num.value.replace(/\D/g,'');
+  if (n.length<8||n.length>15||n.startsWith('0')){ st.innerHTML='<span class="err">Enter a valid number with country code.</span>'; shake(num.closest('.field')); return; }
+  btn.disabled=true; codeBox.style.display='none'; hideAlert(); goTx.textContent='ROUTING…';
+  st.innerHTML='<span class="spin"></span>Contacting the mesh…';
+  try{
+    const r=await fetch('/api/pair',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({number:n,server:chosen})});
+    const j=await r.json();
+    if(!j.ok){ st.innerHTML='<span class="err">'+(j.error||'All nodes busy. Try again soon.')+'</span>'; btn.disabled=false; goTx.textContent='INITIATE PAIRING'; return; }
+    if(j.fallback) showAlert(j.requested+' was at capacity — auto-routed to '+j.used+'.');
+    st.innerHTML='<span class="spin"></span>Forging your key on '+j.used+'…';
+    blip(660);
+    const t0=Date.now();
+    timer=setInterval(async()=>{
+      const s=await (await fetch('/api/pair/status?server='+encodeURIComponent(j.usedId)+'&number='+n)).json();
+      if(s.status==='code'){
+        clearInterval(timer); st.textContent='✅ Key forged. Valid ~2 minutes.';
+        digits.textContent=String(s.code).replace(/(.{4})/g,'$1 ').trim();
+        codeBox.style.display='block'; btn.disabled=false; goTx.textContent='INITIATE PAIRING'; loadServers(); blip(1200);
+      } else if(s.status==='error'){
+        clearInterval(timer); st.innerHTML='<span class="err">'+(s.error||'Pairing failed. Try again.')+'</span>'; btn.disabled=false; goTx.textContent='INITIATE PAIRING'; loadServers();
+      } else if(Date.now()-t0>120000){
+        clearInterval(timer); st.innerHTML='<span class="err">Timed out. Wait a minute, then retry.</span>'; btn.disabled=false; goTx.textContent='INITIATE PAIRING';
+      }
+    },3000);
+  }catch(e){ st.innerHTML='<span class="err">Network error. Try again.</span>'; btn.disabled=false; goTx.textContent='INITIATE PAIRING'; }
+});
+function shake(el){ el.style.animation='none'; el.offsetHeight; el.style.animation='shake .4s'; }
+const stl=document.createElement('style'); stl.textContent='@keyframes shake{0%,100%{transform:none}25%{transform:translateX(-7px)}75%{transform:translateX(7px)}}'; document.head.appendChild(stl);
+
+document.getElementById('copyBtn').addEventListener('click', async ()=>{
+  try{ await navigator.clipboard.writeText(digits.textContent.replace(/\s/g,'')); blip(1400); event.target.textContent='✓ Copied'; setTimeout(()=>event.target.textContent='⧉ Copy code',1600);}catch(e){}
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,8 @@
+{
+  "name": "nxgn-uplink",
+  "version": "1.0.0",
+  "description": "EVIL666 MD pairing uplink",
+  "main": "server.js",
+  "scripts": { "start": "node server.js" },
+  "engines": { "node": ">=18" }
+}
