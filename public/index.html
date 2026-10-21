@@ -16,7 +16,7 @@
   *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
   html,body{height:100%}
   body{
-    background:#050608;color:var(--ink);overflow-x:hidden;
+    background:#050608 url(poster.jpg) center/cover no-repeat fixed;color:var(--ink);overflow-x:hidden;
     font-family:'Rajdhani',system-ui,sans-serif;
   }
   /* ============ SCENE ============ */
@@ -185,7 +185,7 @@
 
 <!-- SCENE -->
 <div id="scene">
-  <video id="bgv" autoplay muted loop playsinline preload="auto" src="/bg"></video>
+  <video id="bgv" autoplay muted loop playsinline preload="none" poster="poster.jpg" src="/bg.webm"></video>
   <div id="fog"></div>
   <canvas id="embers"></canvas>
   <div id="vign"></div>
