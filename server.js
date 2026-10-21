@@ -18,6 +18,8 @@ const PANELS = [
   { id: 's1', label: 'SERVER 01', key: process.env.SEYORI_PANEL_KEY, serverId: process.env.SEYORI_PANEL_SERVER, max: 15 },
   { id: 's2', label: 'SERVER 02', key: process.env.SEYORI_PANEL2_KEY, serverId: process.env.SEYORI_PANEL2_SERVER, max: 15 },
   { id: 's3', label: 'SERVER 03', key: process.env.SEYORI_PANEL3_KEY, serverId: process.env.SEYORI_PANEL3_SERVER, max: 15 },
+  { id: 's4', label: 'SERVER 04', key: process.env.SEYORI_PANEL4_KEY, serverId: process.env.SEYORI_PANEL4_SERVER, max: 15 },
+  { id: 's5', label: 'SERVER 05', key: process.env.SEYORI_PANEL5_KEY, serverId: process.env.SEYORI_PANEL5_SERVER, max: 15 },
 ].filter((p) => p.key && p.serverId);
 
 const PUB = path.join(__dirname, 'public');
