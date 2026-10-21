@@ -38,11 +38,15 @@ function allowed(ip) {
 // ---- panel helpers ----
 function panelJson(p, apiPath) {
   return new Promise((resolve) => {
+    let settled = false;
+    const done = (v) => { if (!settled) { settled = true; resolve(v); } };
     const req = https_req(PANEL_URL + apiPath, { method: 'GET', headers: { Authorization: 'Bearer ' + p.key, Accept: 'application/json' } }, (res) => {
       let b = ''; res.on('data', (c) => (b += c));
-      res.on('end', () => { try { resolve(JSON.parse(b)); } catch { resolve(null); } });
+      res.on('end', () => { try { done(JSON.parse(b)); } catch { done(null); } });
     });
-    req.on('error', () => resolve(null));
+    req.on('error', () => done(null));
+    setTimeout(() => { done(null); try { req.destroy(); } catch {} }, 12000);
+    req.end();
   });
 }
 function https_req(url, opts, cb) {
@@ -55,11 +59,15 @@ function panelDownload(p, file) {
     const url = j && j.attributes && j.attributes.url;
     if (!url) return null;
     return new Promise((resolve) => {
+      let settled = false;
+      const done = (v) => { if (!settled) { settled = true; resolve(v); } };
       const req = https_req(url, {}, (res) => {
         let b = ''; res.on('data', (c) => (b += c));
-        res.on('end', () => resolve(res.statusCode === 200 ? b : null));
+        res.on('end', () => done(res.statusCode === 200 ? b : null));
       });
-      req.on('error', () => resolve(null));
+      req.on('error', () => done(null));
+      setTimeout(() => { done(null); try { req.destroy(); } catch {} }, 15000);
+      req.end();
     });
   });
 }
@@ -83,14 +91,17 @@ function panelUpload(p, dir, name, content) {
   });
 }
 async function panelState(p) {
-  const res = await panelJson(p, '/api/client/servers/' + p.serverId + '/resources');
+  const [res, log, pend] = await Promise.all([
+    panelJson(p, '/api/client/servers/' + p.serverId + '/resources'),
+    panelDownload(p, '/bootlog.txt'),
+    panelDownload(p, '/database/dashpair.json'),
+  ]);
   const state = res && res.attributes && res.attributes.current_state;
   const memMb = Math.round(((res && res.attributes && res.attributes.resources && res.attributes.resources.memory_bytes) || 0) / 1048576);
   // this panel fork lingers in "starting" long after the process is live
   const online = state === 'running' || (state === 'starting' && memMb >= 30);
   // live session count from the boot log's last [MEM] line
   let sessions = -1;
-  const log = await panelDownload(p, '/bootlog.txt');
   if (log) {
     const lines = log.split('\n');
     for (let i = lines.length - 1; i >= 0; i--) {
@@ -109,7 +120,6 @@ async function panelState(p) {
   }
   // pending web pair reserves a slot
   let pendingNum = '';
-  const pend = await panelDownload(p, '/database/dashpair.json');
   try {
     const j = JSON.parse(pend || '{}');
     if (j.number && !j.code && Date.now() - (j.at || 0) < 300000) pendingNum = String(j.number);
@@ -138,11 +148,10 @@ const server = http.createServer(async (req, res) => {
     if (p === '/health') return send(res, 200, 'ok', 'text/plain');
     if (p === '/bg') return serveFile(res, path.join(PUB, 'bg.mp4'));
     if (p === '/api/servers' && req.method === 'GET') {
-      const out = [];
-      for (const pn of PANELS) {
+      const out = await Promise.all(PANELS.map(async (pn) => {
         const s = await panelState(pn);
-        out.push({ id: pn.id, label: pn.label, online: s.online, sessions: s.sessions, max: pn.max, free: Math.max(0, pn.max - s.sessions - (s.pendingNum ? 1 : 0)) });
-      }
+        return { id: pn.id, label: pn.label, online: s.online, sessions: s.sessions, max: pn.max, free: Math.max(0, pn.max - s.sessions - (s.pendingNum ? 1 : 0)) };
+      }));
       return send(res, 200, JSON.stringify({ servers: out }));
     }
     if (p === '/api/pair' && req.method === 'POST') {
@@ -155,7 +164,7 @@ const server = http.createServer(async (req, res) => {
         try { const b = JSON.parse(body); num = String(b.number || '').replace(/\D/g, ''); want = String(b.server || 'auto'); } catch {}
         if (num.length < 8 || num.length > 15 || num.startsWith('0')) return send(res, 400, JSON.stringify({ ok: false, error: 'Invalid number.' }));
         const states = new Map();
-        for (const pn of PANELS) states.set(pn.id, await panelState(pn));
+        await Promise.all(PANELS.map(async (pn) => states.set(pn.id, await panelState(pn))));
         const ordered = [...PANELS].sort((a, b) => {
           const wa = a.id === want ? -1e9 : 0, wb = b.id === want ? -1e9 : 0;
           const sa = states.get(a.id), sb = states.get(b.id);
