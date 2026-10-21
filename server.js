@@ -21,7 +21,7 @@ const PANELS = [
 ].filter((p) => p.key && p.serverId);
 
 const PUB = path.join(__dirname, 'public');
-const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.mp4': 'video/mp4', '.png': 'image/png', '.jpg': 'image/jpeg', '.svg': 'image/svg+xml', '.ico': 'image/x-icon' };
+const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.mp4': 'video/mp4', '.webm': 'video/webm', '.woff2': 'font/woff2', '.png': 'image/png', '.jpg': 'image/jpeg', '.svg': 'image/svg+xml', '.ico': 'image/x-icon' };
 
 // ---- rate limit: 6 pair requests / 10 min / ip ----
 const hits = new Map();
@@ -123,7 +123,8 @@ function serveFile(res, f) {
   const ext = path.extname(f).toLowerCase();
   fs.readFile(f, (err, data) => {
     if (err) return send(res, 404, 'Not found', 'text/plain');
-    res.writeHead(200, { 'content-type': MIME[ext] || 'application/octet-stream', 'cache-control': ext === '.mp4' ? 'public, max-age=86400' : 'no-cache' });
+    const immutable = ext === '.webm' || ext === '.woff2';
+    res.writeHead(200, { 'content-type': MIME[ext] || 'application/octet-stream', 'cache-control': immutable ? 'public, max-age=604800, immutable' : ext === '.mp4' ? 'public, max-age=86400' : 'no-cache' });
     res.end(data);
   });
 }
