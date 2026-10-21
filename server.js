@@ -186,8 +186,8 @@ const server = http.createServer(async (req, res) => {
           try {
             const rec = JSON.parse(raw);
             if (String(rec.number || '').replace(/\D/g, '') === num) {
-              if (rec.code) out = { status: 'code', code: String(rec.code) };
-              else if (rec.error) out = { status: 'error', error: String(rec.error) };
+              if (rec.error) out = { status: 'error', error: String(rec.error) };
+              else if (rec.code) out = { status: 'code', code: String(rec.code) };
             }
           } catch {}
         }
