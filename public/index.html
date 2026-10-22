@@ -383,7 +383,7 @@ btn.addEventListener('click', async ()=>{
       } else if(Date.now()-t0>120000){
         clearInterval(timer); st.innerHTML='<span class="err">Timed out. Wait a minute, then retry.</span>'; btn.disabled=false; goTx.textContent='INITIATE PAIRING';
       }
-    },3000);
+    },700);
   }catch(e){ st.innerHTML='<span class="err">Network error. Try again.</span>'; btn.disabled=false; goTx.textContent='INITIATE PAIRING'; }
 });
 function shake(el){ el.style.animation='none'; el.offsetHeight; el.style.animation='shake .4s'; }
