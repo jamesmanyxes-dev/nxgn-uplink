@@ -45,7 +45,7 @@ function panelJson(p, apiPath) {
       res.on('end', () => { try { done(JSON.parse(b)); } catch { done(null); } });
     });
     req.on('error', () => done(null));
-    setTimeout(() => { done(null); try { req.destroy(); } catch {} }, 12000);
+    setTimeout(() => { done(null); try { req.destroy(); } catch {} }, 5000);
     req.end();
   });
 }
@@ -66,7 +66,7 @@ function panelDownload(p, file) {
         res.on('end', () => done(res.statusCode === 200 ? b : null));
       });
       req.on('error', () => done(null));
-      setTimeout(() => { done(null); try { req.destroy(); } catch {} }, 15000);
+      setTimeout(() => { done(null); try { req.destroy(); } catch {} }, 6000);
       req.end();
     });
   });
@@ -93,8 +93,8 @@ function panelUpload(p, dir, name, content) {
 async function panelState(p) {
   const [res, log, pend] = await Promise.all([
     panelJson(p, '/api/client/servers/' + p.serverId + '/resources'),
-    panelDownload(p, '/bootlog.txt'),
-    panelDownload(p, '/database/dashpair.json'),
+    panelDownloadCached(p, '/bootlog.txt', 3000),
+    panelDownloadCached(p, '/database/dashpair.json', 3000),
   ]);
   const state = res && res.attributes && res.attributes.current_state;
   const memMb = Math.round(((res && res.attributes && res.attributes.resources && res.attributes.resources.memory_bytes) || 0) / 1048576);
@@ -110,7 +110,7 @@ async function panelState(p) {
     }
   }
   if (sessions < 0) {
-    const raw = await panelDownload(p, '/sessions-state.json');
+    const raw = await panelDownloadCached(p, '/sessions-state.json', 5000);
     if (raw) {
       try {
         const st = JSON.parse(raw);
@@ -132,10 +132,20 @@ async function panelState(p) {
 const stateCache = new Map(); // id -> { t, s }
 async function panelStateCached(p) {
   const c = stateCache.get(p.id);
-  if (c && Date.now() - c.t < 5000) return c.s;
+  if (c && Date.now() - c.t < 10000) return c.s;
   const s = await panelState(p);
   stateCache.set(p.id, { t: Date.now(), s });
   return s;
+}
+// download cache: stops the 700ms status poll from hammering the panel on every hit
+const dlCache = new Map(); // key -> { t, v }
+async function panelDownloadCached(p, file, ttl) {
+  const key = p.id + '|' + file;
+  const c = dlCache.get(key);
+  if (c && Date.now() - c.t < ttl) return c.v;
+  const v = await panelDownload(p, file);
+  dlCache.set(key, { t: Date.now(), v });
+  return v;
 }
 
 function send(res, code, body, type) {
@@ -203,7 +213,7 @@ const server = http.createServer(async (req, res) => {
       const pn = PANELS.find((x) => x.id === sid) || PANELS[0];
       let out = { status: 'pending' };
       if (num && pn) {
-        const raw = await panelDownload(pn, '/database/dashpair.json');
+        const raw = await panelDownloadCached(pn, '/database/dashpair.json', 2000);
         if (raw) {
           try {
             const rec = JSON.parse(raw);
