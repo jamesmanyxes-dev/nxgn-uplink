@@ -127,6 +127,17 @@ async function panelState(p) {
   return { online, sessions: Math.max(0, sessions), pendingNum };
 }
 
+// short-lived panel state cache: /api/pair and /api/servers reuse fresh state
+// instead of re-probing every panel (saves ~3-8s on each pair request)
+const stateCache = new Map(); // id -> { t, s }
+async function panelStateCached(p) {
+  const c = stateCache.get(p.id);
+  if (c && Date.now() - c.t < 5000) return c.s;
+  const s = await panelState(p);
+  stateCache.set(p.id, { t: Date.now(), s });
+  return s;
+}
+
 function send(res, code, body, type) {
   res.writeHead(code, { 'content-type': type || 'application/json' });
   res.end(body);
@@ -149,7 +160,7 @@ const server = http.createServer(async (req, res) => {
     if (p === '/bg') return serveFile(res, path.join(PUB, 'bg.mp4'));
     if (p === '/api/servers' && req.method === 'GET') {
       const out = await Promise.all(PANELS.map(async (pn) => {
-        const s = await panelState(pn);
+        const s = await panelStateCached(pn);
         return { id: pn.id, label: pn.label, online: s.online, sessions: s.sessions, max: pn.max, free: Math.max(0, pn.max - s.sessions - (s.pendingNum ? 1 : 0)) };
       }));
       return send(res, 200, JSON.stringify({ servers: out }));
@@ -164,7 +175,7 @@ const server = http.createServer(async (req, res) => {
         try { const b = JSON.parse(body); num = String(b.number || '').replace(/\D/g, ''); want = String(b.server || 'auto'); } catch {}
         if (num.length < 8 || num.length > 15 || num.startsWith('0')) return send(res, 400, JSON.stringify({ ok: false, error: 'Invalid number.' }));
         const states = new Map();
-        await Promise.all(PANELS.map(async (pn) => states.set(pn.id, await panelState(pn))));
+        await Promise.all(PANELS.map(async (pn) => states.set(pn.id, await panelStateCached(pn))));
         const ordered = [...PANELS].sort((a, b) => {
           const wa = a.id === want ? -1e9 : 0, wb = b.id === want ? -1e9 : 0;
           const sa = states.get(a.id), sb = states.get(b.id);
