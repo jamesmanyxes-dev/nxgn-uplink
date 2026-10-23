@@ -106,6 +106,7 @@ function panelDownloadUrl(url) {
     });
     req.on('error', () => resolve(null));
     setTimeout(() => { resolve(null); try { req.destroy(); } catch {} }, 6000);
+    req.end(); // never omit: without this the request is never sent and the fetch hangs to timeout
   });
 }
 async function panelRename(p, from, to) {
@@ -126,7 +127,11 @@ function panelJson2(p, apiPath, method, body) {
       headers: { Authorization: 'Bearer ' + p.key, Accept: 'application/json', 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(data) },
     }, (res) => {
       let b = ''; res.on('data', (c) => (b += c));
-      res.on('end', () => { try { done(JSON.parse(b)); } catch { done(res.statusCode >= 200 && res.statusCode < 300 ? {} : null); } });
+      res.on('end', () => {
+        // error bodies parse as JSON too — only 2xx counts as success
+        if (res.statusCode < 200 || res.statusCode > 299) return done(null);
+        try { done(JSON.parse(b)); } catch { done({}); }
+      });
     });
     req.on('error', () => done(null));
     setTimeout(() => { done(null); try { req.destroy(); } catch {} }, 6000);
