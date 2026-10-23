@@ -45,9 +45,16 @@ function panelJson(p, apiPath) {
       res.on('end', () => { try { done(JSON.parse(b)); } catch { done(null); } });
     });
     req.on('error', () => done(null));
-    setTimeout(() => { done(null); try { req.destroy(); } catch {} }, 5000);
+    setTimeout(() => { done(null); try { req.destroy(); } catch {} }, 9000);
     req.end();
   });
+}
+// the panel host flaps: single calls are ~1s but spikes to 8s+ are common, so
+// one retry on a failed/null GET absorbs most jank (2026-10-23)
+async function panelJsonRetry(p, apiPath) {
+  const a = await panelJson(p, apiPath);
+  if (a) return a;
+  return panelJson(p, apiPath);
 }
 function https_req(url, opts, cb) {
   const u = new URL(url);
@@ -66,7 +73,7 @@ function panelDownload(p, file) {
         res.on('end', () => done(res.statusCode === 200 ? b : null));
       });
       req.on('error', () => done(null));
-      setTimeout(() => { done(null); try { req.destroy(); } catch {} }, 6000);
+      setTimeout(() => { done(null); try { req.destroy(); } catch {} }, 9000);
       req.end();
     });
   });
@@ -89,6 +96,7 @@ function rawUpload(url, name, content) {
       headers: { 'Content-Type': 'multipart/form-data; boundary=' + boundary, 'Content-Length': body.length },
     }, (res) => { res.resume(); res.on('end', () => resolve(res.statusCode >= 200 && res.statusCode < 300)); });
     req.on('error', () => resolve(false));
+    setTimeout(() => { resolve(false); try { req.destroy(); } catch {} }, 15000);
     req.write(body); req.end();
   });
 }
@@ -105,7 +113,7 @@ function panelDownloadUrl(url) {
       res.on('end', () => resolve(res.statusCode === 200 ? b : null));
     });
     req.on('error', () => resolve(null));
-    setTimeout(() => { resolve(null); try { req.destroy(); } catch {} }, 6000);
+    setTimeout(() => { resolve(null); try { req.destroy(); } catch {} }, 9000);
     req.end(); // never omit: without this the request is never sent and the fetch hangs to timeout
   });
 }
@@ -134,7 +142,7 @@ function panelJson2(p, apiPath, method, body) {
       });
     });
     req.on('error', () => done(null));
-    setTimeout(() => { done(null); try { req.destroy(); } catch {} }, 6000);
+    setTimeout(() => { done(null); try { req.destroy(); } catch {} }, 9000);
     req.write(data); req.end();
   });
 }
@@ -166,7 +174,7 @@ async function panelWriteVerified(p, dir, name, content) {
 }
 async function panelState(p) {
   const [res, log, pend] = await Promise.all([
-    panelJson(p, '/api/client/servers/' + p.serverId + '/resources'),
+    panelJsonRetry(p, '/api/client/servers/' + p.serverId + '/resources'),
     panelDownloadCached(p, '/bootlog.txt', 3000),
     panelDownloadCached(p, '/database/dashpair.json', 3000),
   ]);
