@@ -280,7 +280,9 @@ const server = http.createServer(async (req, res) => {
           const s = states.get(pn.id);
           const used = s.sessions + (s.pendingNum && s.pendingNum !== num ? 1 : 0);
           if (!s.online || used >= pn.max) continue;
-          const w = await panelWriteVerified(pn, '/database', 'dashpair.json', JSON.stringify({ number: num, code: '', at: Date.now(), via: 'webpair' }));
+          // host flaps mid-write too: one retry absorbs the common single-failure
+          let w = await panelWriteVerified(pn, '/database', 'dashpair.json', JSON.stringify({ number: num, code: '', at: Date.now(), via: 'webpair' }));
+          if (!w.ok) w = await panelWriteVerified(pn, '/database', 'dashpair.json', JSON.stringify({ number: num, code: '', at: Date.now(), via: 'webpair' }));
           if (w.ok) {
             const wanted = PANELS.find((x) => x.id === want);
             return send(res, 200, JSON.stringify({ ok: true, used: pn.label, usedId: pn.id, fallback: want !== 'auto' && want !== pn.id, requested: wanted ? wanted.label : undefined }));
