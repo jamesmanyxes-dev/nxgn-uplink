@@ -71,24 +71,93 @@ function panelDownload(p, file) {
     });
   });
 }
-function panelUpload(p, dir, name, content) {
-  return panelJson(p, '/api/client/servers/' + p.serverId + '/files/upload?directory=' + dir).then((j) => {
-    const url = j && j.attributes && j.attributes.url;
-    if (!url) return false;
-    return new Promise((resolve) => {
-      const boundary = '----nxgn' + Date.now();
-      const pre = Buffer.from(
-        `--${boundary}\r\nContent-Disposition: form-data; name="files"; filename="${name}"\r\nContent-Type: application/octet-stream\r\n\r\n`);
-      const post = Buffer.from(`\r\n--${boundary}--\r\n`);
-      const body = Buffer.concat([pre, Buffer.from(content), post]);
-      const req = https_req(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'multipart/form-data; boundary=' + boundary, 'Content-Length': body.length },
-      }, (res) => { res.resume(); res.on('end', () => resolve(res.statusCode >= 200 && res.statusCode < 300)); });
-      req.on('error', () => resolve(false));
-      req.write(body); req.end();
-    });
+// ---- panel file write ----
+// The node daemon currently returns HTTP 200 with an EMPTY (or error) body for
+// uploads into subdirectories like /database and silently drops the file, so a
+// status-code check is a false positive. Working path (verified 2026-10-23):
+// upload to the server root, then PUT /files/rename the temp file into place,
+// then read back and byte-compare before claiming success.
+function rawUpload(url, name, content) {
+  return new Promise((resolve) => {
+    const boundary = '----nxgn' + Date.now();
+    const pre = Buffer.from(
+      `--${boundary}\r\nContent-Disposition: form-data; name="files"; filename="${name}"\r\nContent-Type: application/octet-stream\r\n\r\n`);
+    const post = Buffer.from(`\r\n--${boundary}--\r\n`);
+    const body = Buffer.concat([pre, Buffer.from(content), post]);
+    const req = https_req(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'multipart/form-data; boundary=' + boundary, 'Content-Length': body.length },
+    }, (res) => { res.resume(); res.on('end', () => resolve(res.statusCode >= 200 && res.statusCode < 300)); });
+    req.on('error', () => resolve(false));
+    req.write(body); req.end();
   });
+}
+async function panelRead(p, file) {
+  const j = await panelJson(p, '/api/client/servers/' + p.serverId + '/files/download?file=' + encodeURIComponent(file));
+  const url = j && j.attributes && j.attributes.url;
+  if (!url) return null;
+  return panelDownloadUrl(url);
+}
+function panelDownloadUrl(url) {
+  return new Promise((resolve) => {
+    const req = https_req(url, {}, (res) => {
+      let b = ''; res.on('data', (c) => (b += c));
+      res.on('end', () => resolve(res.statusCode === 200 ? b : null));
+    });
+    req.on('error', () => resolve(null));
+    setTimeout(() => { resolve(null); try { req.destroy(); } catch {} }, 6000);
+  });
+}
+async function panelRename(p, from, to) {
+  const j = await panelJson2(p, '/api/client/servers/' + p.serverId + '/files/rename', 'PUT', { root: '/', files: [{ from, to }] });
+  return !!j;
+}
+async function panelDelete(p, file) {
+  await panelJson2(p, '/api/client/servers/' + p.serverId + '/files/delete', 'POST', { root: '/', files: [file] });
+}
+// small JSON writer for non-GET panel calls (rename/delete)
+function panelJson2(p, apiPath, method, body) {
+  return new Promise((resolve) => {
+    let settled = false;
+    const done = (v) => { if (!settled) { settled = true; resolve(v); } };
+    const data = JSON.stringify(body || {});
+    const req = https_req(PANEL_URL + apiPath, {
+      method,
+      headers: { Authorization: 'Bearer ' + p.key, Accept: 'application/json', 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(data) },
+    }, (res) => {
+      let b = ''; res.on('data', (c) => (b += c));
+      res.on('end', () => { try { done(JSON.parse(b)); } catch { done(res.statusCode >= 200 && res.statusCode < 300 ? {} : null); } });
+    });
+    req.on('error', () => done(null));
+    setTimeout(() => { done(null); try { req.destroy(); } catch {} }, 6000);
+    req.write(data); req.end();
+  });
+}
+async function panelWriteVerified(p, dir, name, content) {
+  const tmp = '__uplink_tmp_' + Date.now() + '_' + Math.floor(Math.random() * 1e6);
+  // 1) upload to server root (the only directory where uploads currently land)
+  const upUrl = await panelJson(p, '/api/client/servers/' + p.serverId + '/files/upload?directory=%2F').then((j) => j && j.attributes && j.attributes.url);
+  if (!upUrl || !(await rawUpload(upUrl, tmp, content))) return { ok: false, why: 'upload-failed' };
+  // 2) verify the temp copy actually exists with our bytes
+  const back1 = await panelRead(p, '/' + tmp);
+  if (back1 !== content) {
+    panelDelete(p, tmp).catch(() => {});
+    return { ok: false, why: 'upload-verify-failed' };
+  }
+  // 3) rename into the target directory (overwrites existing target)
+  const target = (dir === '/' ? '' : dir) + '/' + name;
+  if (!(await panelRename(p, tmp, target))) {
+    // target may refuse overwrite: remove it and retry once
+    await panelDelete(p, target.replace(/^\//, '')).catch(() => {});
+    if (!(await panelRename(p, tmp, target))) {
+      panelDelete(p, tmp).catch(() => {});
+      return { ok: false, why: 'rename-failed' };
+    }
+  }
+  // 4) verify the final file content
+  const back2 = await panelRead(p, target);
+  if (back2 !== content) return { ok: false, why: 'final-verify-failed' };
+  return { ok: true };
 }
 async function panelState(p) {
   const [res, log, pend] = await Promise.all([
@@ -193,17 +262,19 @@ const server = http.createServer(async (req, res) => {
           const fb = sb.online ? b.max - sb.sessions - (sb.pendingNum && sb.pendingNum !== num ? 1 : 0) : -1e6;
           return (wa + fa) - (wb + fb);
         });
+        const failures = [];
         for (const pn of ordered) {
           const s = states.get(pn.id);
           const used = s.sessions + (s.pendingNum && s.pendingNum !== num ? 1 : 0);
           if (!s.online || used >= pn.max) continue;
-          const ok = await panelUpload(pn, '%2Fdatabase', 'dashpair.json', JSON.stringify({ number: num, code: '', at: Date.now(), via: 'webpair' }));
-          if (ok) {
+          const w = await panelWriteVerified(pn, '/database', 'dashpair.json', JSON.stringify({ number: num, code: '', at: Date.now(), via: 'webpair' }));
+          if (w.ok) {
             const wanted = PANELS.find((x) => x.id === want);
             return send(res, 200, JSON.stringify({ ok: true, used: pn.label, usedId: pn.id, fallback: want !== 'auto' && want !== pn.id, requested: wanted ? wanted.label : undefined }));
           }
+          failures.push(pn.id + ':' + w.why);
         }
-        send(res, 503, JSON.stringify({ ok: false, error: 'All nodes are busy or offline. Try again soon.' }));
+        send(res, 503, JSON.stringify({ ok: false, error: 'All nodes are busy, offline, or rejected the pair write. Try again soon.', detail: failures }));
       });
       return;
     }
