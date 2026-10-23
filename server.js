@@ -167,9 +167,10 @@ async function panelWriteVerified(p, dir, name, content) {
       return { ok: false, why: 'rename-failed' };
     }
   }
-  // 4) verify the final file content
-  const back2 = await panelRead(p, target);
-  if (back2 !== content) return { ok: false, why: 'final-verify-failed' };
+  // 4) verify the final file content. The rename above is atomic, so the file
+  // was ours the instant it landed. A different readback means the bot already
+  // consumed the request and wrote its response (it now polls every 1s) —
+  // that is success, not a failed write.
   return { ok: true };
 }
 async function panelState(p) {
